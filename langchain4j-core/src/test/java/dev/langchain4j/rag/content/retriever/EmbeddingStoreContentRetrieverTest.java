@@ -336,6 +336,21 @@ class EmbeddingStoreContentRetrieverTest {
     }
 
     @Test
+    void deduplicateOverlap_shouldNotStripOverlapWhenRetrievedOrderIsNotDocumentOrder() {
+        dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
+        dev.langchain4j.data.document.Metadata meta1 = dev.langchain4j.data.document.Metadata.from("index", "1");
+
+        Content c0 = Content.from(TextSegment.from("the quick brown fox", meta0));
+        Content c1 = Content.from(TextSegment.from("brown fox jumps over", meta1));
+
+        List<Content> result = EmbeddingStoreContentRetriever.deduplicateOverlap(asList(c1, c0));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).textSegment().text()).isEqualTo("brown fox jumps over");
+        assertThat(result.get(1).textSegment().text()).isEqualTo("the quick brown fox");
+    }
+
+    @Test
     void deduplicateOverlap_shouldPreserveMetadataAfterDedup() {
         dev.langchain4j.data.document.Metadata meta0 = new dev.langchain4j.data.document.Metadata();
         meta0.put("index", "0");
