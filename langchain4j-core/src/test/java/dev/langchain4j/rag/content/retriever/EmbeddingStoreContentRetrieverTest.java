@@ -249,6 +249,22 @@ class EmbeddingStoreContentRetrieverTest {
     }
 
     @Test
+    void deduplicateOverlap_shouldNotModifySegmentsWithInvalidIndexMetadata() {
+        dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
+        dev.langchain4j.data.document.Metadata metaInvalid =
+                dev.langchain4j.data.document.Metadata.from("index", "one");
+
+        Content c0 = Content.from(TextSegment.from("the quick brown fox", meta0));
+        Content c1 = Content.from(TextSegment.from("brown fox jumps over", metaInvalid));
+
+        List<Content> result = EmbeddingStoreContentRetriever.deduplicateOverlap(asList(c0, c1));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).textSegment().text()).isEqualTo("the quick brown fox");
+        assertThat(result.get(1).textSegment().text()).isEqualTo("brown fox jumps over");
+    }
+
+    @Test
     void deduplicateOverlap_shouldReturnSingleContentUnchanged() {
         dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
         Content c0 = Content.from(TextSegment.from("the quick brown fox", meta0));
@@ -272,6 +288,51 @@ class EmbeddingStoreContentRetrieverTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).textSegment().text()).isEqualTo("the quick brown fox");
         assertThat(result.get(1).textSegment().text()).isEqualTo("jumps over the lazy dog");
+    }
+
+    @Test
+    void deduplicateOverlap_shouldNotModifyRepeatedTextThatIsNotSuffixPrefixOverlap() {
+        dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
+        dev.langchain4j.data.document.Metadata meta1 = dev.langchain4j.data.document.Metadata.from("index", "1");
+
+        Content c0 = Content.from(TextSegment.from("alpha beta gamma", meta0));
+        Content c1 = Content.from(TextSegment.from("beta delta", meta1));
+
+        List<Content> result = EmbeddingStoreContentRetriever.deduplicateOverlap(asList(c0, c1));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).textSegment().text()).isEqualTo("alpha beta gamma");
+        assertThat(result.get(1).textSegment().text()).isEqualTo("beta delta");
+    }
+
+    @Test
+    void deduplicateOverlap_shouldHandleChineseOverlap() {
+        dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
+        dev.langchain4j.data.document.Metadata meta1 = dev.langchain4j.data.document.Metadata.from("index", "1");
+
+        Content c0 = Content.from(TextSegment.from("今天我们学习向量检索", meta0));
+        Content c1 = Content.from(TextSegment.from("向量检索可以减少重复", meta1));
+
+        List<Content> result = EmbeddingStoreContentRetriever.deduplicateOverlap(asList(c0, c1));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).textSegment().text()).isEqualTo("今天我们学习向量检索");
+        assertThat(result.get(1).textSegment().text()).isEqualTo("可以减少重复");
+    }
+
+    @Test
+    void deduplicateOverlap_shouldNotProduceBlankSegmentWhenTextsAreIdentical() {
+        dev.langchain4j.data.document.Metadata meta0 = dev.langchain4j.data.document.Metadata.from("index", "0");
+        dev.langchain4j.data.document.Metadata meta1 = dev.langchain4j.data.document.Metadata.from("index", "1");
+
+        Content c0 = Content.from(TextSegment.from("same text", meta0));
+        Content c1 = Content.from(TextSegment.from("same text", meta1));
+
+        List<Content> result = EmbeddingStoreContentRetriever.deduplicateOverlap(asList(c0, c1));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).textSegment().text()).isEqualTo("same text");
+        assertThat(result.get(1).textSegment().text()).isEqualTo("same text");
     }
 
     @Test
@@ -312,5 +373,15 @@ class EmbeddingStoreContentRetrieverTest {
     void longestSuffixPrefixOverlap_shouldHandleFullOverlap() {
         assertThat(EmbeddingStoreContentRetriever.longestSuffixPrefixOverlap("hello", "hello"))
                 .isEqualTo(5);
+    }
+
+    @Test
+    void longestSuffixPrefixOverlap_shouldHandleEmptyAndShortTexts() {
+        assertThat(EmbeddingStoreContentRetriever.longestSuffixPrefixOverlap("", "hello"))
+                .isEqualTo(0);
+        assertThat(EmbeddingStoreContentRetriever.longestSuffixPrefixOverlap("hello", ""))
+                .isEqualTo(0);
+        assertThat(EmbeddingStoreContentRetriever.longestSuffixPrefixOverlap("a", "ab"))
+                .isEqualTo(1);
     }
 }
